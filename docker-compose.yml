@@ -1,0 +1,35 @@
+version: '3'
+
+volumes:
+  pubkeys:
+
+services:
+  # will run both quorum and constellation with default config
+  quorum:
+    image: bortes/quorum
+    volumes:
+      - pubkeys:/var/opt/nodes
+
+  # will run quorum with default config
+  only-geth-with-defaults:
+    command: geth
+    image: bortes/quorum
+
+  # will run constellation with default config
+  only-constellation-with-defaults:
+    command: constellation-node
+    image: bortes/quorum
+
+  # will run geth with custom config - taken from command below
+  only-custom-geth:
+    command: geth --rpc
+    image: bortes/quorum
+    ports:
+      - 8545:8545
+
+  # will run constellation with custom config - taken from command below
+  only-custom-constellation:
+    command: constellation-node --url=https://localhost:9000 --port=9000
+    image: bortes/quorum
+    ports:
+      - 9000:9000
