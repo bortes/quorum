@@ -228,7 +228,7 @@ quorum_generate_command()
     # ACCOUNT FLAGS
     # --unlock 0               = define a lista de contas para serem desbloqueadas - contas separadas por virgula
     #                              https://github.com/ethereum/go-ethereum/wiki/Managing-your-accounts#non-interactive-use
-    #
+    set -- "$@" --unlock 0
 
     # GENERAL FLAGS
     # --datadir                = define o diretorio para armazenamento dos dados do no
