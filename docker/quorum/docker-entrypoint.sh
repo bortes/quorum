@@ -221,6 +221,19 @@ quorum_generate_node_scheme()
 quorum_generate_command()
 {
 
+    # consiste contas pre-cadastradas - regra aplicavel apenas para contas sem senha
+    if [ "$(ls -A $quorum_var/keystore)" ]
+    then
+
+        # cria arquivo que possui as senhas das contas
+        touch $quorum_var/passwords.txt
+
+        # habilita o desbloqueio das contas
+        unlock_pre_existing_accounts=1
+
+    fi
+
+
     # GETH
     #   https://github.com/ethereum/go-ethereum/wiki/command-line-options
     #   https://github.com/jpmorganchase/quorum/blob/master/cmd/utils/flags.go
@@ -228,7 +241,13 @@ quorum_generate_command()
     # ACCOUNT FLAGS
     # --unlock 0               = define a lista de contas para serem desbloqueadas - contas separadas por virgula
     #                              https://github.com/ethereum/go-ethereum/wiki/Managing-your-accounts#non-interactive-use
-    set -- "$@" --unlock 0
+    #
+    if [[ "$unlock_pre_existing_accounts" ]]
+    then
+
+        set -- "$@" --unlock 0
+
+    fi
 
     # GENERAL FLAGS
     # --datadir                = define o diretorio para armazenamento dos dados do no
@@ -236,6 +255,13 @@ quorum_generate_command()
     # --password passwords.txt = define arquivo contendo a senha da conta
     #
     set -- "$@" --datadir "$quorum_var" --nodiscover
+
+    if [[ "$unlock_pre_existing_accounts" ]]
+    then
+
+        set -- "$@" --password "$quorum_var/passwords.txt"
+
+    fi
 
     # NETWORK FLAGS
     # --bootnodes              = define a lista de nos utilizados para conexao P2P durante a inicializacao deste no - modo "discovery"
