@@ -3,8 +3,23 @@
 # finaliza o script quando ocorrer algum erro
 set -e
 
+# porta para acesso P2P ao no do quorum
+args_quorum_port=${QUORUM_PORT:-30303}
+
+# porta para acesso RAFT ao no do quorum
+args_quorum_raft_port=${QUORUM_RAFT_PORT:-50400}
+
+# porta para acesso RPC ao no do quorum
+args_quorum_rpc_port=${QUORUM_RPC_PORT:-8545}
+
+# porta para acesso P2P ao no do constellation
+args_constellation_port=${CONSTELLATION_PORT:-9000}
+
+# lista de nos que formam a rede de nos do constellation
+args_constellation_nodes=${CONSTELLATION_NODES}
+
 # ip do container necessario para exposicao do nos
-my_ip=$( hostname --ip-address )
+args_my_ip=$([ -z "$IP" ] && hostname --ip-address || echo "$IP")
 
 # caminho completo para o repositorio dos dados dos nos
 nodes_var=/var/opt/nodes
@@ -60,7 +75,7 @@ supervisor_var=/var/run/supervisor
 # caminho completo para a configuracao do supervisord
 supervisor_config_path="$supervisor_var/supervisor.conf"
 
-echo "CONTAINER IP $my_ip"
+echo "CONTAINER IP $args_my_ip"
 echo
 
 # gera as chaves Enclave do no - para (des)critografia das transacoes privadas realizadas pelo no
@@ -134,8 +149,8 @@ quorum_generate_keys()
         enode=$( quorum_generate_node_scheme )
 
         # persiste a URL de acesso para compartilhar com os demais nos da rede
-        mkdir -p "$nodes_var/$my_ip"
-        echo "$enode" > "$nodes_var/$my_ip/enode"
+        mkdir -p "$nodes_var/$args_my_ip/$args_quorum_port"
+        echo "$enode" > "$nodes_var/$args_my_ip/$args_quorum_port/enode"
 
     fi
 
@@ -158,7 +173,7 @@ quorum_generate_static_nodes()
         echo
 
         # intera sobre a lista de nos registrados
-        for node in $nodes_var/**/*
+        for node in $nodes_var/**/**/*
         do
 
             # obtem a URL para acesso ao no
@@ -211,7 +226,7 @@ quorum_generate_node_scheme()
     pub_key="$( cat $quorum_pub_key_path )"
 
     # gera chave de acesso no formato ENODE para comunicacao com outros nos
-    enode="enode://$pub_key@$my_ip:30303?discport=30303&raftport=50400"
+    enode="enode://$pub_key@$args_my_ip:$args_quorum_port?discport=$args_quorum_port&raftport=$args_quorum_raft_port"
 
     echo "$enode"
 
@@ -222,7 +237,7 @@ quorum_generate_command()
 {
 
     # consiste contas pre-cadastradas - regra aplicavel apenas para contas sem senha
-    if [ "$(ls -A $quorum_var/keystore)" ]
+    if [ -d "$quorum_var/keystore" ]
     then
 
         # cria arquivo que possui as senhas das contas
@@ -268,7 +283,7 @@ quorum_generate_command()
     # --nodekey                = define o arquivo com a chave privada utilizada na conexao P2P
     # --port 21000             = define a porta utilizada para comunicacao com outros nos da rede (padrao: 30303)
     #
-    set -- "$@" --nodekey "$quorum_var/prv.key" --port 30303
+    set -- "$@" --nodekey "$quorum_var/prv.key" --port "$args_quorum_port"
 
     # RPC FLAGS
     # --ipcpath                = nome do arquivo socket utilizado para comunicacao via IPC
@@ -304,14 +319,14 @@ quorum_generate_command()
     # --rpcport 22000          = define a porta utilizada para servidor de HTTP-RPC (padrao: 8545)
     #                          =   https://github.com/jpmorganchase/quorum/wiki/using-quorum#setting-up-a-permissioned-network
     #
-    set -- "$@" --ipcpath "$quorum_socket_path" --rpc --rpcaddr 0.0.0.0 --rpcapi admin,db,eth,debug,miner,net,shh,txpool,personal,web3,quorum --rpcport 8545
+    set -- "$@" --ipcpath "$quorum_socket_path" --rpc --rpcaddr 0.0.0.0 --rpcapi admin,db,eth,debug,miner,net,shh,txpool,personal,web3,quorum --rpcport "$args_quorum_rpc_port"
 
     # RAFT FLAGS
     # --emitcheckpoints        = ativa a emissao de pontos de verificacao formatados
     # --raft                   = ativa o consenso RAFT (padrao: quorum chain)
     # --raftport 50401         = define a porta utilizada para o consenso RAFT (padrao: 50400)
     #
-    set -- "$@" --emitcheckpoints --raft --raftport 50400
+    set -- "$@" --emitcheckpoints --raft --raftport "$args_quorum_raft_port"
 
     # QUORUM FLAGS
     # --permissioned           = define a lista de nos que podem se conectar neste no para compor uma rede privada
@@ -332,36 +347,48 @@ quorum_generate_command()
 constellation_generate_command()
 {
 
-    # define o protocolo de acesso ao constellation
-    constellation_protocol=https
+    # consiste lista de nos nao informada
+    if [ -z "$args_constellation_nodes" ]
+    then
 
-    # recupera todos os IP associados ao servico
-    for ip in $(dig +noall +answer "${constellation_service_name:-0}" | awk '{print $5}')
-    do
+        # define o protocolo de acesso ao constellation
+        constellation_protocol=https
+    
+        # recupera todos os IP associados ao servico
+        for ip in $(dig +noall +answer "${constellation_service_name:-0}" | awk '{print $5}')
+        do
+    
+            node=$constellation_protocol://$ip:9001/
+    
+            # consiste lista de nos nao inicializada
+            if [ -z "$constellation_nodes_list" ]
+            then
+    
+                constellation_nodes_list="$node"
+    
+            else
+    
+                constellation_nodes_list="$constellation_nodes_list,$node"
+    
+            fi
+    
+        done
 
-        node=$constellation_protocol://$ip:9001/
+    else
 
-        # consiste lista de nos nao inicializada
-        if [ -z "$constellation_nodes_list" ]
-        then
+        # a lista de nos sera a lista informada via variavel de ambiente
+        constellation_nodes_list=$args_constellation_nodes
 
-            constellation_nodes_list="$node"
-
-        else
-
-            constellation_nodes_list="$constellation_nodes_list,$node"
-
-        fi
-
-    done
+    fi
 
     # consiste lista de nos nao inicializada
     if [ -z "$constellation_nodes_list" ]
     then
 
-        constellation_nodes_list=$constellation_protocol://$my_ip:9001/
+        constellation_nodes_list=$constellation_protocol://$args_my_ip:$args_constellation_port/
 
     fi
+
 
     # CONSTELLATION
     #   https://github.com/jpmorganchase/constellation/blob/master/sample.conf
@@ -376,7 +403,7 @@ constellation_generate_command()
     # --url=https://127.0.0.1:9001/        define a URL para o acesso externo a API publica do no (padrao: http://127.0.0.1:9001/)
     # --othernodes=https://127.0.0.1:9001/ define a lista dos nos da rede - lista inicial, nao precisa possuir todos os nos da rede
     #
-    set -- "$@" --port=9001 --url=$constellation_protocol://$my_ip:9001/ --othernodes=$constellation_nodes_list
+    set -- "$@" --port="$args_constellation_port" --url="$constellation_protocol://$args_my_ip:$args_constellation_port/" --othernodes="$constellation_nodes_list"
 
     # TRANSACTION MANAGER FLAGS
     # --publickeys=tm.pub                  define a lista de chaves publicas utilizadas para ler as transacoes privadas

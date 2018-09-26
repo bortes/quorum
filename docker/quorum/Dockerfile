@@ -89,7 +89,7 @@ RUN    addgroup quorum \
 # https://github.com/jpmorganchase/constellation#prerequisites
         libsodium-dev libleveldb-dev libgmp10 \
 # instalas pacotes extras
-        dnsutils curl supervisor vim \
+        dnsutils curl supervisor vim iputils-ping iproute2 netcat \
     &&  apt-get autoremove --yes \
     && rm -rf /var/lib/apt/lists/*
 
