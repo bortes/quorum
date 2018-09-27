@@ -131,7 +131,7 @@ quorum_generate_keys()
 {
 
     # verifica se sera necessario criar as chaves publicas e privadas utilizadas pelo no
-    if [ ! -f "$quorum_prv_key_path" ]
+    if [ ! -f "$quorum_etc/prv.key" ]
     then
 
         # notificao comando executado
@@ -151,6 +151,12 @@ quorum_generate_keys()
         # persiste a URL de acesso para compartilhar com os demais nos da rede
         mkdir -p "$nodes_var/$args_my_ip/$args_quorum_port"
         echo "$enode" > "$nodes_var/$args_my_ip/$args_quorum_port/enode"
+
+    else
+
+        # copia as chaves publicas e privadas utilizadas pelo no
+        cp "$quorum_etc/prv.key" $quorum_prv_key_path
+        cp "$quorum_etc/pub.key" $quorum_pub_key_path
 
     fi
 
@@ -199,6 +205,12 @@ quorum_generate_static_nodes()
 $quorum_nodes_list
 ]" > $static_node_path
 
+
+    else
+
+        # copia a lista de nos que fazem parte da rede privada
+        cp "$quorum_etc/static-nodes.json" $static_node_path
+
     fi
 
 }
@@ -213,6 +225,11 @@ quorum_generate_permissioned_nodes()
 
         # gera relacao de nos que se transacionam com este no
         cp $static_node_path $permissioned_node_path
+
+    else
+
+        # copia a lista de nos que fazem parte da rede privada
+        cp "$quorum_etc/permissioned-nodes.json" $permissioned_node_path
 
     fi
 
@@ -347,13 +364,13 @@ quorum_generate_command()
 constellation_generate_command()
 {
 
+    # define o protocolo de acesso ao constellation
+    constellation_protocol=https
+
     # consiste lista de nos nao informada
     if [ -z "$args_constellation_nodes" ]
     then
-
-        # define o protocolo de acesso ao constellation
-        constellation_protocol=https
-    
+   
         # recupera todos os IP associados ao servico
         for ip in $(dig +noall +answer "${constellation_service_name:-0}" | awk '{print $5}')
         do
@@ -431,29 +448,44 @@ then
 
     # declarado apenas os servicos que serao executados para correta comparacao
     run_constellation=1
+    run_bootnode=1
     run_geth=1
     run_supervisor=1
 
 fi
 
-# verifica se foi solicitado a execucao do geth - neste caso sera executado com a configuracao padrao para o geth
-if [[ "$@" = "geth" ]]
-then
-
-    # declarado apenas os servicos que serao executados para correta comparacao
-    # run_constellation=0
-    run_geth=1
-    # run_supervisor=0
-
-fi
-
-# verifica se foi solicitado a execucao do constellation - neste caso sera executado com a configuracao padrao para o constellation
+# verifica se foi solicitado a execucao do constellation - neste caso sera executado o constellation com a configuracao padrao
 if [[ "$@" = "constellation-node" ]]
 then
 
     # declarado apenas os servicos que serao executados para correta comparacao
     run_constellation=1
+    # run_bootnode=0
     # run_geth=0
+    # run_supervisor=0
+
+fi
+
+# verifica se foi solicitado a execucao do bootnode - neste caso sera executado o bootnode
+if [[ "$@" = "bootnode" ]]
+then
+
+    # declarado apenas os servicos que serao executados para correta comparacao
+    # run_constellation=0
+    run_bootnode=1
+    # run_geth=0
+    # run_supervisor=0
+
+fi
+
+# verifica se foi solicitado a execucao do geth - neste caso sera executado o geth com a configuracao padrao
+if [[ "$@" = "geth" ]]
+then
+
+    # declarado apenas os servicos que serao executados para correta comparacao
+    # run_constellation=0
+    run_bootnode=1
+    run_geth=1
     # run_supervisor=0
 
 fi
@@ -467,8 +499,8 @@ then
 
 fi
 
-# tratamento para execucao do geth
-if [[ "$run_geth" ]]
+# tratamento para execucao do bootnode
+if [[ "$run_bootnode" ]]
 then
 
     quorum_generate_keys
@@ -479,6 +511,12 @@ then
 
     quorum_generate_permissioned_nodes
     sleep 1
+
+fi
+
+# tratamento para execucao do geth
+if [[ "$run_geth" ]]
+then
 
     quorum_generate_genesis
     sleep 1
@@ -550,6 +588,12 @@ elif [[ "$run_geth" ]]
 then
 
     set -- $( quorum_generate_command )
+
+# tratamento para execucao do bootnode
+elif [[ "$run_bootnode" ]]
+then
+
+    set -- echo "FINISHED"
 
 fi
 
