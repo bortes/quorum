@@ -54,7 +54,7 @@ FROM ubuntu:16.04 AS deployer
 #   30303   rede geth
 #   50400   consenso RAFT geth
 #   9001    API constelation
-EXPOSE 8545 30303/udp 50400 9001
+# EXPOSE 8545 30303/udp 50400 9001
 
 # copiar artefatos
 COPY --from=builder /build /usr/local/bin/

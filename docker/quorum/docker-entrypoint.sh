@@ -33,6 +33,9 @@ quorum_var=/var/opt/quorum
 # caminho completo para o repositorio das configuracoes do quorum
 quorum_etc=/etc/opt/quorum
 
+# caminho completo para as contas pre-existentes
+quorum_accounts_path=$quorum_etc/keystore
+
 # caminho completo para o arquivo que define o bloco genesis
 genesis_path="$quorum_etc/genesis.json"
 
@@ -75,10 +78,11 @@ supervisor_var=/var/run/supervisor
 # caminho completo para a configuracao do supervisord
 supervisor_config_path="$supervisor_var/supervisor.conf"
 
-echo "CONTAINER IP $args_my_ip"
+echo "CONTAINER IP  $(hostname --ip-address)"
+echo "GIVEN IP      $args_my_ip"
 echo
 
-# gera as chaves Enclave do no - para (des)critografia das transacoes privadas realizadas pelo no
+# gera as chaves para transacoes privadas do no - para (des)critografia das transacoes privadas realizadas pelo no
 constellation_generate_keys()
 {
 
@@ -98,6 +102,28 @@ constellation_generate_keys()
         mv $constellation_var/prv.pub $constellation_pub_key_path
 
         echo
+        echo
+
+    fi
+
+}
+
+# importa as contas pre-cadastradas no no
+quorum_import_accounts()
+{
+
+    # consiste contas pre-cadastradas
+    if [ -d "$quorum_accounts_path" ]
+    then
+
+        # notificao comando executado
+        echo "QUORUM ACCOUNTS"
+        echo "  cp $(ls $quorum_accounts_path | wc -l) accounts to $quorum_var/keystore"
+        echo
+
+        # copia as contas pre-cadastradas
+        cp -r $quorum_accounts_path $quorum_var/keystore
+
         echo
 
     fi
@@ -126,7 +152,7 @@ quorum_generate_genesis()
 
 }
 
-# gera as chaves P2P do no
+# gera as chaves para comunicacao P2P do no
 quorum_generate_keys()
 {
 
@@ -253,33 +279,33 @@ quorum_generate_node_scheme()
 quorum_generate_command()
 {
 
-    # consiste contas pre-cadastradas - regra aplicavel apenas para contas sem senha
-    if [ -d "$quorum_var/keystore" ]
-    then
+    # # consiste contas pre-cadastradas - regra aplicavel apenas para contas sem senha
+    # if [ -d "$quorum_var/keystore" ]
+    # then
 
-        # cria arquivo que possui as senhas das contas
-        touch $quorum_var/passwords.txt
+    #     # cria arquivo que possui as senhas das contas
+    #     touch $quorum_var/passwords.txt
 
-        # habilita o desbloqueio das contas
-        unlock_pre_existing_accounts=1
+    #     # habilita o desbloqueio das contas
+    #     unlock_pre_existing_accounts=1
 
-    fi
+    # fi
 
 
     # GETH
     #   https://github.com/ethereum/go-ethereum/wiki/command-line-options
     #   https://github.com/jpmorganchase/quorum/blob/master/cmd/utils/flags.go
 
-    # ACCOUNT FLAGS
-    # --unlock 0               = define a lista de contas para serem desbloqueadas - contas separadas por virgula
-    #                              https://github.com/ethereum/go-ethereum/wiki/Managing-your-accounts#non-interactive-use
-    #
-    if [[ "$unlock_pre_existing_accounts" ]]
-    then
+    # # ACCOUNT FLAGS
+    # # --unlock 0               = define a lista de contas para serem desbloqueadas - contas separadas por virgula
+    # #                              https://github.com/ethereum/go-ethereum/wiki/Managing-your-accounts#non-interactive-use
+    # #
+    # if [[ "$unlock_pre_existing_accounts" ]]
+    # then
 
-        set -- "$@" --unlock 0
+    #     set -- "$@" --unlock 0
 
-    fi
+    # fi
 
     # GENERAL FLAGS
     # --datadir                = define o diretorio para armazenamento dos dados do no
@@ -288,12 +314,12 @@ quorum_generate_command()
     #
     set -- "$@" --datadir "$quorum_var" --nodiscover
 
-    if [[ "$unlock_pre_existing_accounts" ]]
-    then
+    # if [[ "$unlock_pre_existing_accounts" ]]
+    # then
 
-        set -- "$@" --password "$quorum_var/passwords.txt"
+    #     set -- "$@" --password "$quorum_var/passwords.txt"
 
-    fi
+    # fi
 
     # NETWORK FLAGS
     # --bootnodes              = define a lista de nos utilizados para conexao P2P durante a inicializacao deste no - modo "discovery"
@@ -517,6 +543,8 @@ fi
 # tratamento para execucao do geth
 if [[ "$run_geth" ]]
 then
+
+    quorum_import_accounts
 
     quorum_generate_genesis
     sleep 1
